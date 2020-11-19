@@ -1,0 +1,77 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-2
+---
+## Secret to be used as MinIO Root Credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-creds-secret
+  namespace: tenant-2
+type: Opaque
+data:
+  ## Access Key for MinIO Tenant, base64 encoded (echo -n 'minio' | base64)
+  accesskey: bWluaW8=
+  ## Secret Key for MinIO Tenant, base64 encoded (echo -n 'minio123' | base64)
+  secretkey: bWluaW8xMjM=
+---
+## MinIO Tenant Definition
+apiVersion: minio.min.io/v1
+kind: Tenant
+metadata:
+  name: minio
+  namespace: tenant-2
+  ## Optionally pass labels to be applied to the statefulset pods
+  labels:
+    app: minio
+  ## Annotations for MinIO Tenant Pods
+  annotations:
+    prometheus.io/path: /minio/prometheus/metrics
+    prometheus.io/port: "9000"
+    prometheus.io/scrape: "true"
+
+spec:
+  ## Registry location and Tag to download MinIO Server image
+  image: minio/minio:RELEASE.2020-10-27T04-03-55Z-88-g2e088c1aa
+  imagePullPolicy: IfNotPresent
+
+  ## Secret with credentials to be used by MinIO Tenant.
+  ## Refers to the secret object created above.
+  credsSecret:
+    name: minio-creds-secret
+
+  ## Specification for MinIO Zone(s) in this Tenant.
+  zones:
+    - servers: 4
+      volumesPerServer: 1
+      volumeClaimTemplate:
+        metadata:
+          name: data
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Ti
+
+      ## Configure resource requests and limits for MinIO containers
+      # resources:
+      #   requests:
+      #     cpu: 250m
+      #     memory: 16Gi
+      #   limits:
+      #     cpu: 500m
+      #      memory: 16Gi
+
+  ## Mount path where PV will be mounted inside container(s).
+  mountPath: /export
+  requestAutoCert: false
+
+  certConfig:
+    commonName: ""
+    organizationName: []
+    dnsNames: []
+
+  podManagementPolicy: Parallel
